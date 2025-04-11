@@ -1,0 +1,12 @@
+{
+  "apiKeys": {
+    "googleSafeBrowsing": "YOUR_GOOGLE_SAFE_BROWSING_API_KEY",
+    "virusTotal": "YOUR_VIRUSTOTAL_API_KEY",
+    "sucuri": "YOUR_SUCURI_API_KEY"
+  },
+  "settings": {
+    "checkTimeout": 120000,
+    "maxDirectoriesToCheck": 10,
+    "maxRequestsPerMinute": 30
+  }
+}

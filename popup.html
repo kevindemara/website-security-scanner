@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Website Security Scanner</title>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div><img style="float: left;" src="/images/icon48.png"></img><h1 style="float: right;margin-top: 10px;margin-left: 10px;">Website Security Scanner</h1></div>
+      <div class="score-container">
+        <div class="score-circle">
+          <span id="overall-score">--</span>
+        </div>
+        <div class="score-label">Trust Score</div>
+      </div>
+    </header>
+    
+    <div class="url-container">
+      <span id="current-url">Analyzing...</span>
+    </div>
+    
+    <div class="scan-status">
+      <button id="scan-button">Scan Now</button>
+      <a style="margin-left: 10px; text-decoration: none; background-color: #4285f4; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: 500; transition: background-color 0.2s;" href="#" id="settings-link">API Settings</a>
+      <div id="scan-progress">
+        <div class="loader"></div>
+        <span>Scanning...</span>
+      </div>
+    </div>
+    
+    <div class="results-container">
+      <div class="security-check" id="ssl-check">
+        <div class="check-header">
+          <span class="check-title">SSL Certificate</span>
+          <span class="check-score">--</span>
+        </div>
+        <div class="check-details"></div>
+      </div>
+      
+      <div class="security-check" id="https-check">
+        <div class="check-header">
+          <span class="check-title">HTTPS Status</span>
+          <span class="check-score">--</span>
+        </div>
+        <div class="check-details"></div>
+      </div>
+      
+      <div class="security-check" id="safebrowsing-check">
+        <div class="check-header">
+          <span class="check-title">Safe Browsing</span>
+          <span class="check-score">--</span>
+        </div>
+        <div class="check-details"></div>
+      </div>
+      
+      <div class="security-check" id="vulnerabilities-check">
+        <div class="check-header">
+          <span class="check-title">Vulnerabilities</span>
+          <span class="check-score">--</span>
+        </div>
+        <div class="check-details"></div>
+      </div>
+      
+      <div class="security-check" id="email-security-check">
+        <div class="check-header">
+          <span class="check-title">Email Security</span>
+          <span class="check-score">--</span>
+        </div>
+        <div class="check-details"></div>
+      </div>
+      
+      <div class="security-check" id="directories-check">
+        <div class="check-header">
+          <span class="check-title">Exposed Directories</span>
+          <span class="check-score">--</span>
+        </div>
+        <div class="check-details"></div>
+      </div>
+      
+      <div class="security-check" id="headers-check">
+        <div class="check-header">
+          <span class="check-title">Security Headers</span>
+          <span class="check-score">--</span>
+        </div>
+        <div class="check-details"></div>
+      </div>
+    </div>
+    
+    <footer>
+      <p>Last scan: <span id="scan-time">Never</span></p>
+      
+      </br>
+      <p><a href="https://github.com/kevindemara/" id="settings-link">Credit: Kevin DeMara</a></p>
+    </footer>
+  </div>
+  
+  <div id="settings-modal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2>API Settings</h2>
+      <div class="settings-form">
+        <div class="form-group">
+          <label for="google-api-key">Google Safe Browsing API Key:</label>
+          <input type="text" id="google-api-key" placeholder="Enter your Google API key">
+        </div>
+        <div class="form-group">
+          <label for="virustotal-api-key">VirusTotal API Key:</label>
+          <input type="text" id="virustotal-api-key" placeholder="Enter your VirusTotal API key">
+        </div>
+        <div class="form-group">
+          <button id="save-settings">Save Settings</button>
+        </div>
+        <p class="settings-note">API keys are stored locally in your browser and are only sent to the respective API services.</p>
+      </div>
+    </div>
+  </div>
+  
+  <script src="safebrowsing.js"></script>
+  <script src="vulnerability-scanner.js"></script>
+  <script src="email-security.js"></script>
+  <script src="directory-checker.js"></script>
+  <script src="security-headers.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
