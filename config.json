@@ -1,12 +1,27 @@
 {
   "apiKeys": {
-    "googleSafeBrowsing": "YOUR_GOOGLE_SAFE_BROWSING_API_KEY",
-    "virusTotal": "YOUR_VIRUSTOTAL_API_KEY",
-    "sucuri": "YOUR_SUCURI_API_KEY"
+    "googleSafeBrowsing": "",
+    "virusTotal": ""
   },
   "settings": {
-    "checkTimeout": 120000,
-    "maxDirectoriesToCheck": 10,
-    "maxRequestsPerMinute": 30
+    "checkTimeout": 60000,
+    "maxDirectoriesToCheck": 5,
+    "maxRequestsPerMinute": 60,
+    "cacheMinutes": 5,
+    "saveHistory": true,
+    "showBadge": true,
+    "externalServices": false,
+    "directoryConsent": false,
+    "checks": {
+      "https": true,
+      "ssl": true,
+      "safeBrowsing": true,
+      "vulnerabilities": true,
+      "emailSecurity": true,
+      "exposedDirectories": false,
+      "securityHeaders": true,
+      "mixedContent": true,
+      "forms": true
+    }
   }
 }

@@ -1,0 +1,79 @@
+{
+  "layouts": [
+    {
+      "width": 320,
+      "section": "scan",
+      "overflow": false
+    },
+    {
+      "width": 320,
+      "section": "history",
+      "overflow": false
+    },
+    {
+      "width": 320,
+      "section": "settings",
+      "overflow": false
+    },
+    {
+      "width": 360,
+      "section": "scan",
+      "overflow": false
+    },
+    {
+      "width": 360,
+      "section": "history",
+      "overflow": false
+    },
+    {
+      "width": 360,
+      "section": "settings",
+      "overflow": false
+    },
+    {
+      "width": 460,
+      "section": "scan",
+      "overflow": false
+    },
+    {
+      "width": 460,
+      "section": "history",
+      "overflow": false
+    },
+    {
+      "width": 460,
+      "section": "settings",
+      "overflow": false
+    }
+  ],
+  "contrasts": [
+    {
+      "selector": "#score-explanation",
+      "ratio": 5.46
+    },
+    {
+      "selector": ".status.passed",
+      "ratio": 6.08
+    },
+    {
+      "selector": ".status.warning",
+      "ratio": 5.69
+    },
+    {
+      "selector": ".status.skipped",
+      "ratio": 5.21
+    },
+    {
+      "selector": "#scan-button",
+      "ratio": 5.88
+    },
+    {
+      "selector": "#tab-scan",
+      "ratio": 6.97
+    }
+  ],
+  "keyboardFocus": "passed",
+  "forcedColors": "passed",
+  "reducedMotion": "respected",
+  "functionalFiles": "byte-for-byte unchanged"
+}

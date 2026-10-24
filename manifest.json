@@ -1,7 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Website Security Scanner",
-  "version": "1.0.4",
+  "version": "1.0.5",
+  "minimum_chrome_version": "120",
   "description": "Provides a real-time security report for websites with an overall trust score based on multiple security checks",
   "action": {
     "default_popup": "popup.html",
@@ -11,14 +12,12 @@
       "128": "images/icon128.png"
     }
   },
-  "permissions": [
-    "activeTab",
-    "scripting",
-    "storage"
-  ],
+  "permissions": ["activeTab", "scripting", "storage"],
   "host_permissions": [
-    "https://*/*",
-    "http://*/*"
+    "https://api.ssllabs.com/*",
+    "https://dns.google/*",
+    "https://safebrowsing.googleapis.com/*",
+    "https://www.virustotal.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -30,11 +29,5 @@
     "16": "images/icon16.png",
     "48": "images/icon48.png",
     "128": "images/icon128.png"
-  },
-  "web_accessible_resources": [
-    {
-      "resources": ["config.json"],
-      "matches": ["<all_urls>"]
-    }
-  ]
+  }
 }

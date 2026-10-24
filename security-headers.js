@@ -1,292 +1,120 @@
-// Security Headers Checker for Website Security Scanner
-// Performs comprehensive security header analysis
-
 class SecurityHeadersChecker {
-  constructor() {
-    // Define security headers to check with descriptions and importance levels
-    this.securityHeaders = {
-      'Content-Security-Policy': {
-        description: 'Helps prevent XSS attacks by specifying which dynamic resources are allowed to load',
-        importance: 'high',
-        weight: 3,
-        example: "default-src 'self'; script-src 'self' trusted-scripts.com"
-      },
-      'Strict-Transport-Security': {
-        description: 'Forces browsers to use HTTPS for the specified domain',
-        importance: 'high',
-        weight: 3,
-        example: 'max-age=31536000; includeSubDomains'
-      },
-      'X-Content-Type-Options': {
-        description: 'Prevents browsers from MIME-sniffing a response from the declared content-type',
-        importance: 'medium',
-        weight: 2,
-        example: 'nosniff'
-      },
-      'X-Frame-Options': {
-        description: 'Protects against clickjacking attacks by preventing the page from being embedded in a frame',
-        importance: 'medium',
-        weight: 2,
-        example: 'DENY'
-      },
-      'X-XSS-Protection': {
-        description: 'Enables the cross-site scripting (XSS) filter in browsers',
-        importance: 'medium',
-        weight: 2,
-        example: '1; mode=block'
-      },
-      'Referrer-Policy': {
-        description: 'Controls how much referrer information should be included with requests',
-        importance: 'medium',
-        weight: 2,
-        example: 'strict-origin-when-cross-origin'
-      },
-      'Permissions-Policy': {
-        description: 'Controls which browser features and APIs can be used in the page',
-        importance: 'medium',
-        weight: 2,
-        example: 'camera=(), microphone=(), geolocation=()'
-      },
-      'Cache-Control': {
-        description: 'Directives for caching mechanisms in requests and responses',
-        importance: 'low',
-        weight: 1,
-        example: 'no-store, max-age=0'
-      },
-      'Clear-Site-Data': {
-        description: 'Clears browsing data (cookies, storage, cache) associated with the requesting website',
-        importance: 'low',
-        weight: 1,
-        example: '"cache", "cookies", "storage"'
-      },
-      'Cross-Origin-Embedder-Policy': {
-        description: 'Prevents a document from loading any cross-origin resources that don\'t explicitly grant the document permission',
-        importance: 'low',
-        weight: 1,
-        example: 'require-corp'
-      },
-      'Cross-Origin-Opener-Policy': {
-        description: 'Prevents other domains from opening/controlling a window',
-        importance: 'low',
-        weight: 1,
-        example: 'same-origin'
-      },
-      'Cross-Origin-Resource-Policy': {
-        description: 'Prevents other domains from reading the response of the resources to which this header is applied',
-        importance: 'low',
-        weight: 1,
-        example: 'same-origin'
-      }
-    };
-    
-    // Maximum possible score (sum of all weights)
-    this.maxScore = Object.values(this.securityHeaders).reduce((sum, header) => sum + header.weight, 0);
-  }
-
-  /**
-   * Check security headers for a given URL
-   * @param {Object} headers - The response headers object
-   * @returns {Object} - The check result
-   */
   checkSecurityHeaders(headers) {
-    try {
-      // Convert headers object to lowercase keys for case-insensitive matching
-      const normalizedHeaders = this.normalizeHeaders(headers);
-      
-      // Track present and missing headers
-      const presentHeaders = [];
-      const missingHeaders = [];
-      const headerDetails = [];
-      
-      // Calculate score based on present headers
-      let score = 0;
-      
-      // Check each security header
-      for (const [headerName, headerInfo] of Object.entries(this.securityHeaders)) {
-        const normalizedName = headerName.toLowerCase();
-        
-        if (normalizedHeaders[normalizedName]) {
-          // Header is present
-          presentHeaders.push(headerName);
-          score += headerInfo.weight;
-          
-          // Add header details
-          headerDetails.push({
-            name: headerName,
-            value: normalizedHeaders[normalizedName],
-            status: 'present',
-            importance: headerInfo.importance,
-            description: headerInfo.description
-          });
-        } else {
-          // Header is missing
-          missingHeaders.push(headerName);
-          
-          // Add header details
-          headerDetails.push({
-            name: headerName,
-            status: 'missing',
-            importance: headerInfo.importance,
-            description: headerInfo.description,
-            example: headerInfo.example
-          });
-        }
-      }
-      
-      // Calculate percentage score (0-15 scale)
-      const percentageScore = (score / this.maxScore);
-      const scaledScore = Math.round(percentageScore * 15);
-      
-      // Determine status based on score
-      let status, message;
-      
-      if (percentageScore >= 0.7) {
-        status = 'passed';
-        message = 'Good security header implementation';
-      } else if (percentageScore >= 0.4) {
-        status = 'warning';
-        message = 'Some important security headers are missing';
-      } else {
-        status = 'failed';
-        message = 'Most security headers are missing';
-      }
-      
-      return {
-        status: status,
-        score: scaledScore,
-        details: {
-          message: message,
-          presentHeaders: presentHeaders,
-          missingHeaders: missingHeaders,
-          headerDetails: headerDetails,
-          totalScore: score,
-          maxScore: this.maxScore
-        }
-      };
-    } catch (error) {
-      console.error('Error checking security headers:', error);
-      return {
-        status: 'error',
-        score: 5, // Partial score due to error
-        details: {
-          message: `Error checking security headers: ${error.message}`,
-          error: error.message
-        }
-      };
-    }
-  }
-  
-  /**
-   * Normalize headers object to lowercase keys
-   * @param {Object} headers - The headers object
-   * @returns {Object} - Normalized headers object
-   */
-  normalizeHeaders(headers) {
-    const normalized = {};
-    
-    // Handle different header formats
-    if (headers instanceof Headers) {
-      // Web API Headers object
+    const C = globalThis.ScannerCore;
+    const h = {};
+    if (headers instanceof Headers)
       headers.forEach((value, key) => {
-        normalized[key.toLowerCase()] = value;
+        h[key.toLowerCase()] = value;
       });
-    } else if (typeof headers === 'object') {
-      // Plain object
-      for (const [key, value] of Object.entries(headers)) {
-        normalized[key.toLowerCase()] = value;
-      }
+    else
+      for (const [key, value] of Object.entries(headers))
+        h[key.toLowerCase()] = String(value);
+    const recommendations = [],
+      headerDetails = [];
+    const csp = h["content-security-policy"] || "";
+    const directives = {};
+    for (const part of csp.split(";")) {
+      const [key, ...values] = part.trim().split(/\s+/);
+      if (key && !Object.hasOwn(directives, key.toLowerCase()))
+        directives[key.toLowerCase()] = values;
     }
-    
-    return normalized;
-  }
-  
-  /**
-   * Analyze a specific security header value
-   * @param {string} headerName - The header name
-   * @param {string} headerValue - The header value
-   * @returns {Object} - Analysis result
-   */
-  analyzeHeaderValue(headerName, headerValue) {
-    // This could be expanded to provide more detailed analysis of header values
-    switch (headerName.toLowerCase()) {
-      case 'content-security-policy':
-        return this.analyzeCSP(headerValue);
-      case 'strict-transport-security':
-        return this.analyzeHSTS(headerValue);
-      default:
-        return {
-          valid: true,
-          recommendations: []
-        };
+    const scriptSources =
+      directives["script-src"] || directives["default-src"] || [];
+    const safeScripts = [
+      scriptSources,
+      directives["script-src-elem"] || scriptSources,
+      directives["script-src-attr"] || scriptSources,
+    ].every(
+      (sources) =>
+        sources.length > 0 &&
+        !sources.some((value) =>
+          [
+            "'unsafe-inline'",
+            "'unsafe-eval'",
+            "*",
+            "http:",
+            "https:",
+            "data:",
+          ].includes(value),
+        ),
+    );
+    const frameAncestors = directives["frame-ancestors"];
+    const frameSafe =
+      frameAncestors?.length > 0 &&
+      !frameAncestors.includes("*") &&
+      !frameAncestors.some((value) => ["http:", "https:"].includes(value));
+    const maxAge = h["strict-transport-security"]?.match(
+      /(?:^|;)\s*max-age\s*=\s*(\d+)\s*(?:;|$)/i,
+    );
+    const rules = [
+      [
+        "Content-Security-Policy",
+        4,
+        safeScripts,
+        "Define script-src or default-src with narrow trusted sources; avoid unsafe-inline, unsafe-eval, and wildcards.",
+      ],
+      [
+        "Strict-Transport-Security",
+        4,
+        !!maxAge && Number(maxAge[1]) >= 31536000,
+        "Set HSTS max-age to at least 31536000 after confirming HTTPS works for your site.",
+      ],
+      [
+        "X-Content-Type-Options",
+        2,
+        h["x-content-type-options"]?.toLowerCase() === "nosniff",
+        "Set X-Content-Type-Options: nosniff.",
+      ],
+      [
+        "Frame protection",
+        2,
+        frameSafe || /^(DENY|SAMEORIGIN)$/i.test(h["x-frame-options"] || ""),
+        "Restrict embedding with CSP frame-ancestors 'self' or 'none', or X-Frame-Options.",
+      ],
+      [
+        "Referrer-Policy",
+        2,
+        [
+          "no-referrer",
+          "same-origin",
+          "strict-origin",
+          "strict-origin-when-cross-origin",
+        ].includes(h["referrer-policy"]?.toLowerCase()),
+        "Use a restrictive Referrer-Policy, such as strict-origin-when-cross-origin.",
+      ],
+      [
+        "Permissions-Policy",
+        1,
+        /\w+\s*=\s*\(/.test(h["permissions-policy"] || ""),
+        "Define a Permissions-Policy for sensitive browser features your application does not need.",
+      ],
+    ];
+    let score = 0;
+    for (const [name, weight, valid, advice] of rules) {
+      if (valid) score += weight;
+      else recommendations.push(advice);
+      headerDetails.push({
+        name,
+        status: valid ? "passed" : "warning",
+        value: (name === "Frame protection"
+          ? h["content-security-policy"] || h["x-frame-options"] || "Missing"
+          : h[name.toLowerCase()] || "Missing"
+        ).slice(0, 2000),
+      });
     }
-  }
-  
-  /**
-   * Analyze Content-Security-Policy header value
-   * @param {string} cspValue - The CSP header value
-   * @returns {Object} - Analysis result
-   */
-  analyzeCSP(cspValue) {
-    const recommendations = [];
-    
-    // Check for unsafe-inline in script-src
-    if (cspValue.includes("script-src") && cspValue.includes("'unsafe-inline'")) {
-      recommendations.push("Avoid using 'unsafe-inline' in script-src as it defeats the purpose of CSP");
-    }
-    
-    // Check for unsafe-eval in script-src
-    if (cspValue.includes("script-src") && cspValue.includes("'unsafe-eval'")) {
-      recommendations.push("Avoid using 'unsafe-eval' in script-src as it allows potentially dangerous code execution");
-    }
-    
-    // Check if default-src is defined
-    if (!cspValue.includes("default-src")) {
-      recommendations.push("Consider adding default-src directive as a fallback for other resource types");
-    }
-    
-    return {
-      valid: true,
-      recommendations: recommendations
-    };
-  }
-  
-  /**
-   * Analyze Strict-Transport-Security header value
-   * @param {string} hstsValue - The HSTS header value
-   * @returns {Object} - Analysis result
-   */
-  analyzeHSTS(hstsValue) {
-    const recommendations = [];
-    
-    // Check max-age value
-    const maxAgeMatch = hstsValue.match(/max-age=(\d+)/);
-    if (maxAgeMatch) {
-      const maxAge = parseInt(maxAgeMatch[1], 10);
-      if (maxAge < 31536000) { // Less than 1 year
-        recommendations.push("Consider increasing max-age to at least 31536000 (1 year)");
-      }
-    } else {
-      recommendations.push("max-age directive is missing");
-    }
-    
-    // Check for includeSubDomains
-    if (!hstsValue.includes("includeSubDomains")) {
-      recommendations.push("Consider adding includeSubDomains directive for better security");
-    }
-    
-    // Check for preload
-    if (!hstsValue.includes("preload")) {
-      recommendations.push("Consider adding preload directive for maximum security");
-    }
-    
-    return {
-      valid: true,
-      recommendations: recommendations
-    };
+    return C.result(
+      score === 15 ? "passed" : score >= 7 ? "warning" : "failed",
+      score,
+      score === 15
+        ? "Core security headers are present with useful values."
+        : "Security headers are missing or have weak values.",
+      {
+        headerDetails,
+        recommendations,
+        limitation:
+          "Heuristic review of a new unauthenticated HEAD response. This may differ from the loaded page; it does not fully validate CSP syntax. Deprecated X-XSS-Protection is not required.",
+      },
+    );
   }
 }
-
-// Export the checker
-if (typeof module !== 'undefined') {
-  module.exports = SecurityHeadersChecker;
-}
+if (typeof module !== "undefined") module.exports = SecurityHeadersChecker;

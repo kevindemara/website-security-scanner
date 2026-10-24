@@ -1,180 +1,75 @@
-// Email Security Checker for Website Security Scanner
-// Performs DNS lookups for SPF and DMARC records
-
 class EmailSecurityChecker {
-  constructor() {
-    this.dnsApiUrl = 'https://dns.google/resolve';
-    this.requestTimeout = 5000; // 5 seconds timeout
-  }
-
-  /**
-   * Check domain email security (SPF and DMARC records)
-   * @param {string} domain - The domain to check
-   * @returns {Promise<Object>} - The check result
-   */
-  async checkDomain(domain) {
-    try {
-      // Check SPF record
-      const spfResult = await this.checkSpfRecord(domain);
-      
-      // Check DMARC record
-      const dmarcResult = await this.checkDmarcRecord(domain);
-      
-      // Determine overall status and score
-      let status, score, message;
-      
-      if (spfResult.exists && dmarcResult.exists) {
-        status = 'passed';
-        score = 10;
-        message = 'Domain has both SPF and DMARC records';
-      } else if (spfResult.exists) {
-        status = 'warning';
-        score = 5;
-        message = 'Domain has SPF but no DMARC record';
-      } else if (dmarcResult.exists) {
-        status = 'warning';
-        score = 3;
-        message = 'Domain has DMARC but no SPF record';
-      } else {
-        status = 'failed';
-        score = 0;
-        message = 'Domain has neither SPF nor DMARC records';
-      }
-      
-      return {
-        status: status,
-        score: score,
-        details: {
-          message: message,
-          spf: spfResult.exists ? 'Found' : 'Not found',
-          spfRecord: spfResult.record,
-          dmarc: dmarcResult.exists ? 'Found' : 'Not found',
-          dmarcRecord: dmarcResult.record
-        }
-      };
-    } catch (error) {
-      console.error('Error checking email security:', error);
-      return {
-        status: 'error',
-        score: 3, // Partial score due to error
-        details: {
-          message: `Error checking email security: ${error.message}`,
-          error: error.message
-        }
-      };
-    }
-  }
-  
-  /**
-   * Check if domain has an SPF record
-   * @param {string} domain - The domain to check
-   * @returns {Promise<Object>} - The check result
-   */
-  async checkSpfRecord(domain) {
-    try {
-      const txtRecords = await this.queryDns(domain, 'TXT');
-      
-      // Look for SPF record in TXT records
-      const spfRecord = txtRecords.find(record => 
-        record.toLowerCase().includes('v=spf1')
+  async queryDns(domain, signal) {
+    const data = await globalThis.ScannerCore.request(
+      "https://dns.google/resolve?name=" +
+        encodeURIComponent(domain) +
+        "&type=TXT",
+      {},
+      { signal },
+    );
+    if (![0, 3].includes(data.Status))
+      throw new Error("DNS lookup failed; record presence is unknown.");
+    return (data.Answer || [])
+      .filter((answer) => answer.type === 16)
+      .slice(0, 100)
+      .map((answer) =>
+        String(answer.data)
+          .replace(/"\s*"/g, "")
+          .replace(/^"|"$/g, "")
+          .slice(0, 2000),
       );
-      
-      return {
-        exists: !!spfRecord,
-        record: spfRecord || 'No SPF record found'
-      };
-    } catch (error) {
-      console.error('Error checking SPF record:', error);
-      return {
-        exists: false,
-        record: `Error: ${error.message}`
-      };
-    }
   }
-  
-  /**
-   * Check if domain has a DMARC record
-   * @param {string} domain - The domain to check
-   * @returns {Promise<Object>} - The check result
-   */
-  async checkDmarcRecord(domain) {
-    try {
-      const dmarcDomain = `_dmarc.${domain}`;
-      const txtRecords = await this.queryDns(dmarcDomain, 'TXT');
-      
-      // Look for DMARC record in TXT records
-      const dmarcRecord = txtRecords.find(record => 
-        record.toLowerCase().includes('v=dmarc1')
+  async checkDomain(domain, signal) {
+    const C = globalThis.ScannerCore;
+    const [txt, dmarcTxt] = await Promise.all([
+      this.queryDns(domain, signal),
+      this.queryDns("_dmarc." + domain, signal),
+    ]);
+    const spf = txt.filter((record) => /^v=spf1(?:\s|$)/i.test(record));
+    const dmarc = dmarcTxt.filter((record) => /^v=DMARC1\s*;/i.test(record));
+    const recommendations = [];
+    if (spf.length !== 1)
+      recommendations.push(
+        "Publish exactly one SPF record for the checked hostname.",
       );
-      
-      return {
-        exists: !!dmarcRecord,
-        record: dmarcRecord || 'No DMARC record found'
-      };
-    } catch (error) {
-      console.error('Error checking DMARC record:', error);
-      return {
-        exists: false,
-        record: `Error: ${error.message}`
-      };
-    }
-  }
-  
-  /**
-   * Query DNS records using Google's public DNS API
-   * @param {string} domain - The domain to query
-   * @param {string} type - The DNS record type (e.g., 'TXT')
-   * @returns {Promise<Array<string>>} - Array of record values
-   */
-  async queryDns(domain, type) {
-    try {
-      // Create AbortController for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.requestTimeout);
-      
-      try {
-        const url = `${this.dnsApiUrl}?name=${encodeURIComponent(domain)}&type=${type}`;
-        const response = await fetch(url, {
-          method: 'GET',
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (!response.ok) {
-          throw new Error(`DNS query failed with status ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        // Extract record data from response
-        const records = [];
-        if (data.Answer && Array.isArray(data.Answer)) {
-          data.Answer.forEach(answer => {
-            if (answer.data) {
-              // Clean up the record data (remove quotes)
-              const cleanRecord = answer.data.replace(/^"|"$/g, '');
-              records.push(cleanRecord);
-            }
-          });
-        }
-        
-        return records;
-      } finally {
-        clearTimeout(timeoutId);
-      }
-    } catch (error) {
-      // Handle timeout specifically
-      if (error.name === 'AbortError') {
-        throw new Error('DNS query timed out');
-      }
-      
-      throw error;
-    }
+    if (dmarc.length !== 1)
+      recommendations.push(
+        "Publish exactly one DMARC record for the checked hostname.",
+      );
+    const spfStrict = spf.length === 1 && /(?:^|\s)-all\s*$/i.test(spf[0]);
+    const policy = dmarc[0]
+      ?.match(/(?:^|;)\s*p\s*=\s*(none|quarantine|reject)\s*(?:;|$)/i)?.[1]
+      ?.toLowerCase();
+    if (spf.length === 1 && !spfStrict)
+      recommendations.push(
+        "Review the SPF ending policy; -all rejects unauthorized senders.",
+      );
+    if (dmarc.length === 1 && !policy)
+      recommendations.push("Add a valid DMARC p= policy.");
+    if (policy === "none")
+      recommendations.push(
+        "DMARC is monitoring only. Consider quarantine or reject after validating legitimate senders.",
+      );
+    const full =
+      spf.length === 1 &&
+      dmarc.length === 1 &&
+      spfStrict &&
+      ["quarantine", "reject"].includes(policy);
+    const some = spf.length || dmarc.length;
+    return C.result(
+      full ? "passed" : some ? "warning" : "failed",
+      full ? 10 : some ? 5 : 0,
+      full
+        ? "SPF and an enforcing DMARC policy found."
+        : "Email authentication is missing, ambiguous, or not enforcing.",
+      {
+        spfRecords: spf.slice(0, 3),
+        dmarcRecords: dmarc.slice(0, 3),
+        recommendations,
+        limitation:
+          "Checks this exact hostname; organizational-domain fallback and full DNS policy evaluation are not performed.",
+      },
+    );
   }
 }
-
-// Export the checker
-if (typeof module !== 'undefined') {
-  module.exports = EmailSecurityChecker;
-}
+if (typeof module !== "undefined") module.exports = EmailSecurityChecker;

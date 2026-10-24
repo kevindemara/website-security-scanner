@@ -1,0 +1,29 @@
+{
+  "browser": "156.0.8078.4",
+  "extensionVersion": "1.0.5",
+  "passed": 17,
+  "tests": [
+    "real extension loads with temporary activeTab access and no startup errors",
+    "actual HTTP scan reaches page, unauthenticated HEAD response and report UI",
+    "score badge and recommendations reflect completed scan",
+    "cache reuse avoids network and history duplication",
+    "fresh scan compares the previous matching page",
+    "JSON and standalone HTML downloads are safe and contain report evidence",
+    "history supports search, viewing and individual deletion",
+    "settings save check controls, masked keys and badge preference",
+    "directory probing requires consent and finds a real directory index",
+    "HTTPS DOM inspection detects mixed resources and insecure forms",
+    "HTTPS forms distinguish secure POST, external sign-in and passwordless pages",
+    "external lookup payloads omit the page path, tokens and fragment",
+    "progress survives closing and reopening the popup and cancellation stops work",
+    "clear all removes saved and cached reports while retaining configured keys",
+    "keyboard tab navigation and responsive layout avoid horizontal overflow",
+    "internal browser pages are rejected without breaking settings/history",
+    "real browser restart migrates legacy saved keys and keeps external services opt-in"
+  ],
+  "externalServices": "Deterministic provider fixtures; no live API credentials were supplied.",
+  "screenshots": [
+    "popup-scan.png",
+    "popup-settings.png"
+  ]
+}

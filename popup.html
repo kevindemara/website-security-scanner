@@ -1,127 +1,246 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Website Security Scanner</title>
-  <meta charset="utf-8">
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-  <div class="container">
-    <header>
-      <div><img style="float: left;" src="/images/icon48.png"></img><h1 style="float: right;margin-top: 10px;margin-left: 10px;">Website Security Scanner</h1></div>
-      <div class="score-container">
-        <div class="score-circle">
-          <span id="overall-score">--</span>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Website Security Scanner</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-chrome">
+      <header class="app-header">
+        <img src="images/icon48.png" alt="" width="34" height="34" />
+        <div>
+          <h1>Website Security Scanner</h1>
+          <p>Security, with the evidence attached.</p>
         </div>
-        <div class="score-label">Trust Score</div>
-      </div>
-    </header>
-    
-    <div class="url-container">
-      <span id="current-url">Analyzing...</span>
+        <span class="version">1.0.5</span>
+      </header>
+      <nav class="tabs" aria-label="Extension sections" role="tablist">
+        <button
+          id="tab-scan"
+          role="tab"
+          aria-controls="panel-scan"
+          aria-selected="true"
+        >
+          Scan</button
+        ><button
+          id="tab-history"
+          role="tab"
+          aria-controls="panel-history"
+          aria-selected="false"
+          tabindex="-1"
+        >
+          History</button
+        ><button
+          id="tab-settings"
+          role="tab"
+          aria-controls="panel-settings"
+          aria-selected="false"
+          tabindex="-1"
+        >
+          Settings
+        </button>
+      </nav>
     </div>
-    
-    <div class="scan-status">
-      <button id="scan-button">Scan Now</button>
-      <a style="margin-left: 10px; text-decoration: none; background-color: #4285f4; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: 500; transition: background-color 0.2s;" href="#" id="settings-link">API Settings</a>
-      <div id="scan-progress">
-        <div class="loader"></div>
-        <span>Scanning...</span>
-      </div>
-    </div>
-    
-    <div class="results-container">
-      <div class="security-check" id="ssl-check">
-        <div class="check-header">
-          <span class="check-title">SSL Certificate</span>
-          <span class="check-score">--</span>
+    <main>
+      <p id="notice" role="status" aria-live="polite" hidden></p>
+      <section id="panel-scan" role="tabpanel" aria-labelledby="tab-scan">
+        <div class="site-line">
+          <span class="eyebrow">Active website</span
+          ><span id="current-url">Reading current tab…</span>
         </div>
-        <div class="check-details"></div>
-      </div>
-      
-      <div class="security-check" id="https-check">
-        <div class="check-header">
-          <span class="check-title">HTTPS Status</span>
-          <span class="check-score">--</span>
+        <div class="actions">
+          <button class="primary" id="scan-button" disabled>Scan site</button
+          ><button id="fresh-button" disabled>Scan fresh</button
+          ><button id="cancel-button" hidden>Cancel scan</button>
         </div>
-        <div class="check-details"></div>
-      </div>
-      
-      <div class="security-check" id="safebrowsing-check">
-        <div class="check-header">
-          <span class="check-title">Safe Browsing</span>
-          <span class="check-score">--</span>
+        <div id="scan-progress" hidden>
+          <label for="progress"
+            >Checking website… <span id="progress-label">0 / 9</span></label
+          ><progress id="progress" value="0" max="9"></progress>
+          <p class="muted">You can close this popup and return to the scan.</p>
         </div>
-        <div class="check-details"></div>
-      </div>
-      
-      <div class="security-check" id="vulnerabilities-check">
-        <div class="check-header">
-          <span class="check-title">Vulnerabilities</span>
-          <span class="check-score">--</span>
+        <div id="empty-state" class="empty">
+          <h2>A closer look at this site</h2>
+          <p>
+            Inspect HTTPS, headers, page resources, and forms. Enable external
+            services in Settings for TLS, reputation, and email checks.
+          </p>
+          <p class="muted">
+            A limited assessment cannot guarantee that a site is safe.
+          </p>
         </div>
-        <div class="check-details"></div>
-      </div>
-      
-      <div class="security-check" id="email-security-check">
-        <div class="check-header">
-          <span class="check-title">Email Security</span>
-          <span class="check-score">--</span>
-        </div>
-        <div class="check-details"></div>
-      </div>
-      
-      <div class="security-check" id="directories-check">
-        <div class="check-header">
-          <span class="check-title">Exposed Directories</span>
-          <span class="check-score">--</span>
-        </div>
-        <div class="check-details"></div>
-      </div>
-      
-      <div class="security-check" id="headers-check">
-        <div class="check-header">
-          <span class="check-title">Security Headers</span>
-          <span class="check-score">--</span>
-        </div>
-        <div class="check-details"></div>
-      </div>
-    </div>
-    
+        <article id="report" hidden>
+          <div class="report-heading">
+            <span id="report-source" class="eyebrow">Latest scan</span>
+            <h2 id="report-url"></h2>
+            <p id="scan-time" class="muted"></p>
+          </div>
+          <div class="score-panel">
+            <div>
+              <span class="eyebrow">Assessment score</span>
+              <div class="score">
+                <strong id="overall-score">—</strong><span>/ 100</span>
+              </div>
+            </div>
+            <div class="coverage">
+              <label for="coverage"
+                >Coverage <strong id="coverage-text"></strong></label
+              ><meter id="coverage" min="0" max="100" value="0"></meter
+              ><span id="assessed-text" class="muted"></span>
+            </div>
+          </div>
+          <p id="score-explanation" class="muted">
+            The score uses completed checks only. Skipped or unavailable checks
+            do not earn points. High scores with low coverage are incomplete.
+          </p>
+          <p id="comparison" class="comparison" hidden></p>
+          <details id="comparison-details" hidden>
+            <summary>Changed checks</summary>
+            <ul id="comparison-changes"></ul>
+          </details>
+          <div class="actions export-actions">
+            <button id="export-json">Export JSON</button
+            ><button id="export-html">Export HTML</button>
+          </div>
+          <h3>Check results</h3>
+          <div id="checks"></div>
+          <section id="recommendations" aria-label="Recommendations">
+            <h3>What to fix first</h3>
+            <ol id="advice-list"></ol>
+            <p id="no-advice" class="muted" hidden>
+              No fixes suggested by the completed checks. Review coverage and
+              unavailable checks.
+            </p>
+          </section>
+        </article>
+      </section>
+      <section
+        id="panel-history"
+        role="tabpanel"
+        aria-labelledby="tab-history"
+        hidden
+      >
+        <h2>Scan history</h2>
+        <p class="muted">
+          Up to 50 reports saved on this device. Open a report to compare
+          results or export it.
+        </p>
+        <label for="history-search">Find a website</label
+        ><input
+          type="search"
+          id="history-search"
+          placeholder="Search by hostname"
+        />
+        <div id="history-list"></div>
+        <button id="clear-history" class="danger">Clear all scan data</button>
+        <p class="muted">
+          Clears history, cached reports, and scans from this session. API
+          settings are kept.
+        </p>
+      </section>
+      <section
+        id="panel-settings"
+        role="tabpanel"
+        aria-labelledby="tab-settings"
+        hidden
+      >
+        <h2>Make the scan yours</h2>
+        <form id="settings-form">
+          <fieldset>
+            <legend>External services</legend>
+            <label class="toggle"
+              ><input type="checkbox" id="external-services" /><span
+                >Allow external security lookups</span
+              ></label
+            >
+            <p class="disclosure">
+              When enabled, scans send the site hostname to SSL Labs,
+              VirusTotal, and Google Public DNS, and the site origin to Google
+              Safe Browsing. SSL Labs may actively test the public server. URL
+              paths, queries, fragments, form values, and page contents are not
+              sent. These providers receive your IP address. Local/private
+              hostnames and literal private IP ranges are excluded; DNS
+              resolution is not used to verify public routing.
+            </p>
+            <label for="google-api-key">Google Safe Browsing API key</label
+            ><input
+              id="google-api-key"
+              type="password"
+              autocomplete="off"
+              spellcheck="false"
+            /><label for="virustotal-api-key">VirusTotal API key</label
+            ><input
+              id="virustotal-api-key"
+              type="password"
+              autocomplete="off"
+              spellcheck="false"
+            /><label class="toggle"
+              ><input type="checkbox" id="show-keys" /><span
+                >Show API keys</span
+              ></label
+            >
+            <p class="muted">
+              Keys stay in local extension storage and go only to their
+              provider. They are never included in reports.
+            </p>
+          </fieldset>
+          <fieldset>
+            <legend>Checks to run</legend>
+            <div id="check-settings"></div>
+            <p class="disclosure">
+              Directory probing sends unauthenticated GET requests to common
+              paths. Enable it only for sites you are authorized to test.
+              Finding an accessible page alone is not a directory exposure.
+            </p>
+          </fieldset>
+          <fieldset>
+            <legend>Reports and display</legend>
+            <label class="toggle"
+              ><input type="checkbox" id="save-history" /><span
+                >Save scan history locally</span
+              ></label
+            >
+            <p class="muted">
+              Turning this off deletes saved history when you save settings.
+              Session reports remain available until the browser closes.
+            </p>
+            <label class="toggle"
+              ><input type="checkbox" id="show-badge" /><span
+                >Show the latest score on the toolbar</span
+              ></label
+            ><label for="cache-minutes">Reuse recent results</label
+            ><select id="cache-minutes">
+              <option value="0">Never</option>
+              <option value="1">For 1 minute</option>
+              <option value="5">For 5 minutes</option>
+            </select>
+            <p class="muted">
+              Scan fresh always bypasses this cache. Cached page content can be
+              out of date. SSL Labs may separately return an existing
+              assessment.
+            </p>
+          </fieldset>
+          <button class="primary" type="submit">Save settings</button>
+        </form>
+        <p>
+          <a href="privacy.html" target="_blank" rel="noopener"
+            >Privacy and data use</a
+          >
+        </p>
+      </section>
+    </main>
     <footer>
-      <p>Last scan: <span id="scan-time">Never</span></p>
-      
-      </br>
-      <p><a href="https://github.com/kevindemara/" id="settings-link">Credit: Kevin DeMara</a></p>
+      Limited checks. Clear findings.
+      <a
+        href="https://github.com/kevindemara/website-security-scanner"
+        target="_blank"
+        rel="noopener"
+        >Kevin DeMara</a
+      >
     </footer>
-  </div>
-  
-  <div id="settings-modal" class="modal">
-    <div class="modal-content">
-      <span class="close">&times;</span>
-      <h2>API Settings</h2>
-      <div class="settings-form">
-        <div class="form-group">
-          <label for="google-api-key">Google Safe Browsing API Key:</label>
-          <input type="text" id="google-api-key" placeholder="Enter your Google API key">
-        </div>
-        <div class="form-group">
-          <label for="virustotal-api-key">VirusTotal API Key:</label>
-          <input type="text" id="virustotal-api-key" placeholder="Enter your VirusTotal API key">
-        </div>
-        <div class="form-group">
-          <button id="save-settings">Save Settings</button>
-        </div>
-        <p class="settings-note">API keys are stored locally in your browser and are only sent to the respective API services.</p>
-      </div>
-    </div>
-  </div>
-  
-  <script src="safebrowsing.js"></script>
-  <script src="vulnerability-scanner.js"></script>
-  <script src="email-security.js"></script>
-  <script src="directory-checker.js"></script>
-  <script src="security-headers.js"></script>
-  <script src="popup.js"></script>
-</body>
+    <script src="core.js"></script>
+    <script src="popup.js"></script>
+  </body>
 </html>

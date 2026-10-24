@@ -1,717 +1,426 @@
-// @@@SNIPPET popup.js
-// Popup script for Website Security Scanner
-// Handles UI updates and communication with background service worker
-
-document.addEventListener('DOMContentLoaded', function() {
-  // Get DOM elements
-  const scanButton = document.getElementById('scan-button');
-  const scanProgress = document.getElementById('scan-progress');
-  const currentUrlElement = document.getElementById('current-url');
-  const overallScoreElement = document.getElementById('overall-score');
-  const scanTimeElement = document.getElementById('scan-time');
-  const settingsLink = document.getElementById('settings-link');
-  const settingsModal = document.getElementById('settings-modal');
-  const closeModalBtn = document.querySelector('.close');
-  const saveSettingsBtn = document.getElementById('save-settings');
-  const googleApiKeyInput = document.getElementById('google-api-key');
-  const virusTotalApiKeyInput = document.getElementById('virustotal-api-key');
-  
-  // Scan timeout variables
-  let scanTimeoutId = null;
-  const SCAN_TIMEOUT_MS = 120000; // 20 seconds timeout
-  const SCAN_CHECK_INTERVAL_MS = 1000; // Check every second
-  let scanProgressInterval = null;
-  let scanStartTime = null;
-  
-  // Hide scan progress initially
-  scanProgress.style.display = 'none';
-  
-  // Error handling utilities - inline implementation instead of importScripts
-  // URL validation function
-  function validateScanUrl(url) {
-    if (!url) {
-      return {
-        valid: false,
-        message: 'Cannot access tab URL. This might be a browser internal page.'
-      };
-    }
-    
-    // Check if this is a browser internal page
-    if (url.startsWith('chrome://') || 
-        url.startsWith('edge://') || 
-        url.startsWith('about:') ||
-        url.startsWith('chrome-extension://') ||
-        url.startsWith('file://')) {
-      return {
-        valid: false,
-        message: 'Cannot scan browser internal pages. Please navigate to a website.'
-      };
-    }
-    
-    // Check if URL has a valid protocol
-    try {
-      const urlObj = new URL(url);
-      if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
-        return {
-          valid: false,
-          message: `Cannot scan URLs with protocol "${urlObj.protocol}". Only HTTP and HTTPS are supported.`
-        };
-      }
-    } catch (error) {
-      return {
-        valid: false,
-        message: `Invalid URL: ${error.message}`
-      };
-    }
-    
-    return {
-      valid: true,
-      message: ''
-    };
-  }
-  
-  // Load saved API keys
-  loadApiKeys();
-  
-  // Get current tab URL and display it
-  chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-    if (chrome.runtime.lastError) {
-      showError(`Error accessing tab: ${chrome.runtime.lastError.message}`);
-      return;
-    }
-    
-    if (!tabs || tabs.length === 0) {
-      showError('No active tab found');
-      return;
-    }
-    
-    // Check if URL is accessible
-    if (!tabs[0].url) {
-      showError('Cannot access tab URL. This might be a chrome:// or edge:// page.');
-      return;
-    }
-    
-    const currentUrl = tabs[0].url;
-    
-    // Validate the URL
-    const urlValidation = validateScanUrl(currentUrl);
-    if (!urlValidation.valid) {
-      showError(urlValidation.message);
-      return;
-    }
-    
-    currentUrlElement.textContent = currentUrl;
-    
-    // Auto-scan when popup opens
-    performScan();
-  });
-  
-  // Add click event listener to scan button
-  scanButton.addEventListener('click', performScan);
-  
-  // Settings modal functionality
-  settingsLink.addEventListener('click', function(e) {
-    e.preventDefault();
-    settingsModal.style.display = 'block';
-  });
-  
-  closeModalBtn.addEventListener('click', function() {
-    settingsModal.style.display = 'none';
-  });
-  
-  window.addEventListener('click', function(event) {
-    if (event.target == settingsModal) {
-      settingsModal.style.display = 'none';
-    }
-  });
-  
-  saveSettingsBtn.addEventListener('click', saveApiKeys);
-  
-  // Function to load API keys from storage
-  function loadApiKeys() {
-    chrome.storage.local.get(['securityScannerConfig'], function(result) {
-      if (chrome.runtime.lastError) {
-        console.error(`Error loading API keys: ${chrome.runtime.lastError.message}`);
-        return;
-      }
-      
-      if (result.securityScannerConfig && result.securityScannerConfig.apiKeys) {
-        const apiKeys = result.securityScannerConfig.apiKeys;
-        
-        // Only fill if not the placeholder values
-        if (apiKeys.googleSafeBrowsing && apiKeys.googleSafeBrowsing !== 'YOUR_GOOGLE_SAFE_BROWSING_API_KEY') {
-          googleApiKeyInput.value = apiKeys.googleSafeBrowsing;
-        }
-        
-        if (apiKeys.virusTotal && apiKeys.virusTotal !== 'YOUR_VIRUSTOTAL_API_KEY') {
-          virusTotalApiKeyInput.value = apiKeys.virusTotal;
-        }
-      }
-    });
-  }
-  
-  // Function to save API keys to storage
-  function saveApiKeys() {
-    chrome.storage.local.get(['securityScannerConfig'], function(result) {
-      if (chrome.runtime.lastError) {
-        alert(`Error saving API keys: ${chrome.runtime.lastError.message}`);
-        return;
-      }
-      
-      let config = result.securityScannerConfig || {
-        apiKeys: {},
-        settings: {
-          checkTimeout: 120000,
-          maxDirectoriesToCheck: 10,
-          maxRequestsPerMinute: 30
-        }
-      };
-      
-      // Update API keys
-      config.apiKeys.googleSafeBrowsing = googleApiKeyInput.value || 'YOUR_GOOGLE_SAFE_BROWSING_API_KEY';
-      config.apiKeys.virusTotal = virusTotalApiKeyInput.value || 'YOUR_VIRUSTOTAL_API_KEY';
-      
-      // Save to storage
-      chrome.storage.local.set({securityScannerConfig: config}, function() {
-        if (chrome.runtime.lastError) {
-          alert(`Error saving settings: ${chrome.runtime.lastError.message}`);
-          return;
-        }
-        
-        console.log('API keys saved');
-        
-        // Send message to background script to update config
-        chrome.runtime.sendMessage(
-          { action: 'saveConfig', config: config },
-          function(response) {
-            if (chrome.runtime.lastError) {
-              alert(`Error updating background script: ${chrome.runtime.lastError.message}`);
-              return;
-            }
-            
-            if (response && response.success) {
-              // Show success message
-              alert('Settings saved successfully!');
-              settingsModal.style.display = 'none';
-            } else {
-              alert('Error saving settings. Please try again.');
-            }
-          }
-        );
-      });
-    });
-  }
-  
-  // Function to perform security scan
-  function performScan() {
-    // First check if we can access the current tab
-    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-      if (chrome.runtime.lastError) {
-        showError(`Error accessing tab: ${chrome.runtime.lastError.message}`);
-        return;
-      }
-      
-      if (!tabs || tabs.length === 0) {
-        showError('No active tab found');
-        return;
-      }
-      
-      // Check if URL is accessible
-      if (!tabs[0].url) {
-        showError('Cannot access tab URL. This might be a chrome:// or edge:// page.');
-        return;
-      }
-      
-      const currentUrl = tabs[0].url;
-      
-      // Validate the URL
-      const urlValidation = validateScanUrl(currentUrl);
-      if (!urlValidation.valid) {
-        showError(urlValidation.message);
-        return;
-      }
-      
-      // If we get here, we can proceed with the scan
-      startScan();
-    });
-  }
-  
-  // Function to start the actual scan
-  function startScan() {
-    // Show scanning in progress
-    scanButton.style.display = 'none';
-    scanProgress.style.display = 'flex';
-    resetResults();
-    
-    // Clear any previous error messages
-    currentUrlElement.classList.remove('error');
-    
-    // Remove any previous API warnings
-    const previousWarnings = document.querySelectorAll('.api-warning');
-    previousWarnings.forEach(warning => warning.remove());
-    
-    // Remove any previous error notifications
-    const previousErrors = document.querySelectorAll('.error-notification');
-    previousErrors.forEach(error => error.remove());
-    
-    // Record scan start time
-    scanStartTime = Date.now();
-    
-    // Set up progress indicator
-    updateScanProgressIndicator();
-    
-    // Set a timeout for the scan
-    clearScanTimeout(); // Clear any existing timeout
-    scanTimeoutId = setTimeout(function() {
-      handleScanTimeout();
-    }, SCAN_TIMEOUT_MS);
-    
-    // Set up interval to update progress indicator
-    scanProgressInterval = setInterval(updateScanProgressIndicator, SCAN_CHECK_INTERVAL_MS);
-    
-    // Send message to background script to start scan
-    chrome.runtime.sendMessage(
-      { action: 'scanWebsite' },
-      function(response) {
-        // Clear the timeout and interval since we got a response
-        clearScanTimeout();
-        
-        // Check for runtime errors
-        if (chrome.runtime.lastError) {
-          showError(`Error communicating with background script: ${chrome.runtime.lastError.message}`);
-          scanButton.style.display = 'block';
-          scanProgress.style.display = 'none';
-          return;
-        }
-        
-        // Hide scanning progress
-        scanButton.style.display = 'block';
-        scanProgress.style.display = 'none';
-        
-        // Check if response contains an error
-        if (response && response.error) {
-          showErrorNotification(response.error);
-          return;
-        }
-        
-        // Update UI with results
-        if (response) {
-          updateResultsUI(response);
-        } else {
-          showError('Scan failed. Please try again.');
-        }
-      }
+"use strict";
+const C = ScannerCore;
+const $ = (id) => document.getElementById(id);
+let tabId = null,
+  currentConfig,
+  currentReport,
+  currentJob,
+  viewingHistory = false,
+  polling = false;
+let history = [],
+  renderedId = null,
+  currentTabName = "";
+function notice(message = "", error = false) {
+  $("notice").textContent = message;
+  $("notice").hidden = !message;
+  $("notice").classList.toggle("error", error);
+}
+async function send(action, payload = {}) {
+  const response = await chrome.runtime.sendMessage({ action, ...payload });
+  if (!response)
+    throw new Error(
+      "The extension did not respond. Reload it from chrome://extensions and try again.",
     );
+  if (response.error) throw new Error(response.error);
+  return response;
+}
+function showPanel(name) {
+  for (const section of ["scan", "history", "settings"]) {
+    $("panel-" + section).hidden = name !== section;
+    $("tab-" + section).setAttribute("aria-selected", String(name === section));
+    $("tab-" + section).tabIndex = name === section ? 0 : -1;
   }
-  
-  // Function to update scan progress indicator
-  function updateScanProgressIndicator() {
-    if (!scanStartTime) return;
-    
-    const elapsedTime = Date.now() - scanStartTime;
-    const progressPercent = Math.min(100, (elapsedTime / SCAN_TIMEOUT_MS) * 100);
-    
-    // Update progress text
-    const progressText = scanProgress.querySelector('span');
-    if (progressText) {
-      if (elapsedTime > SCAN_TIMEOUT_MS * 0.7) {
-        progressText.textContent = 'Still scanning... (this may take a moment)';
-      } else {
-        progressText.textContent = 'Scanning...';
-      }
+  if (name === "history")
+    loadHistory().catch((error) => notice(error.message, true));
+}
+for (const name of ["scan", "history", "settings"])
+  $("tab-" + name).addEventListener("click", () => showPanel(name));
+document
+  .querySelector('[role="tablist"]')
+  .addEventListener("keydown", (event) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const names = ["scan", "history", "settings"],
+      index = names.findIndex(
+        (name) => $("tab-" + name) === document.activeElement,
+      );
+    const next =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? 2
+          : (index + (event.key === "ArrowRight" ? 1 : -1) + 3) % 3;
+    showPanel(names[next]);
+    $("tab-" + names[next]).focus();
+  });
+function fillSettings(config) {
+  currentConfig = config;
+  $("external-services").checked = config.settings.externalServices;
+  $("google-api-key").value = config.apiKeys.googleSafeBrowsing;
+  $("virustotal-api-key").value = config.apiKeys.virusTotal;
+  $("save-history").checked = config.settings.saveHistory;
+  $("show-badge").checked = config.settings.showBadge;
+  $("cache-minutes").value = String(config.settings.cacheMinutes);
+  $("check-settings").replaceChildren();
+  for (const [key, definition] of Object.entries(C.CHECKS)) {
+    const label = document.createElement("label");
+    label.className = "toggle";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.id = "enable-" + key;
+    input.checked =
+      config.settings.checks[key] &&
+      (key !== "exposedDirectories" || config.settings.directoryConsent);
+    const span = document.createElement("span");
+    span.textContent = definition.label;
+    if (
+      [
+        "ssl",
+        "safeBrowsing",
+        "vulnerabilities",
+        "emailSecurity",
+        "exposedDirectories",
+      ].includes(key)
+    ) {
+      const small = document.createElement("small");
+      small.textContent =
+        key === "exposedDirectories"
+          ? "I am authorized to probe directories on the sites I scan."
+          : "Requires external security lookups.";
+      span.append(small);
     }
+    label.append(input, span);
+    $("check-settings").append(label);
   }
-  
-  // Function to clear scan timeout and interval
-  function clearScanTimeout() {
-    if (scanTimeoutId) {
-      clearTimeout(scanTimeoutId);
-      scanTimeoutId = null;
-    }
-    
-    if (scanProgressInterval) {
-      clearInterval(scanProgressInterval);
-      scanProgressInterval = null;
-    }
-    
-    scanStartTime = null;
-  }
-  
-  // Function to handle scan timeout
-  function handleScanTimeout() {
-    // Clear the interval
-    if (scanProgressInterval) {
-      clearInterval(scanProgressInterval);
-      scanProgressInterval = null;
-    }
-    
-    // Reset UI
-    scanButton.style.display = 'block';
-    scanProgress.style.display = 'none';
-    
-    // Show timeout error
-    showErrorNotification('The scan timed out. This could be due to slow network connection or the website being unresponsive. Please try again or try scanning a different website.');
-  }
-  
-  // Function to show an error notification
-  function showErrorNotification(errorMessage) {
-    // Create error notification element
-    const errorElement = document.createElement('div');
-    errorElement.className = 'error-notification';
-    errorElement.innerHTML = `
-      <div class="error-title">Error Scanning Website</div>
-      <div class="error-message">${errorMessage}</div>
-      <div class="error-help">Please try scanning a different website or check the troubleshooting guide.</div>
-    `;
-    
-    // Insert after URL container
-    const urlContainer = document.querySelector('.url-container');
-    urlContainer.parentNode.insertBefore(errorElement, urlContainer.nextSibling);
-    
-    // Reset scan button
-    scanButton.style.display = 'block';
-    scanProgress.style.display = 'none';
-  }
-  
-  // Function to reset all result displays
-  function resetResults() {
-    overallScoreElement.textContent = '--';
-    overallScoreElement.className = 'score-value';
-    document.querySelectorAll('.check-score').forEach(element => {
-      element.textContent = '--';
-      element.className = 'check-score';
-    });
-    document.querySelectorAll('.check-details').forEach(element => {
-      element.innerHTML = '';
-    });
-    
-    // Reset score circle
-    const scoreCircle = document.querySelector('.score-circle');
-    if (scoreCircle) {
-      scoreCircle.classList.remove('good-score-bg', 'medium-score-bg', 'bad-score-bg');
-    }
-  }
-  
-  // Function to update UI with scan results
-  function updateResultsUI(report) {
-    // Check if report has an error
-    if (report.error) {
-      showErrorNotification(report.error);
-      return;
-    }
-    
-    // Update overall score
-    overallScoreElement.textContent = report.overallScore;
-    
-    // Update scan time
-    const scanTime = new Date(report.timestamp);
-    scanTimeElement.textContent = scanTime.toLocaleTimeString();
-    
-    // Update each security check section
-    updateCheckSection('ssl-check', report.checks.ssl);
-    updateCheckSection('https-check', report.checks.https);
-    updateCheckSection('safebrowsing-check', report.checks.safeBrowsing);
-    updateCheckSection('vulnerabilities-check', report.checks.vulnerabilities);
-    updateCheckSection('email-security-check', report.checks.emailSecurity);
-    updateCheckSection('directories-check', report.checks.exposedDirectories);
-    updateCheckSection('headers-check', report.checks.securityHeaders);
-    
-    // Set color of overall score based on value
-    setScoreColor(overallScoreElement, report.overallScore);
-    
-    // Update score circle color
-    updateScoreCircleColor(report.overallScore);
-    
-    // Check if any API keys are missing and show warning
-    checkApiKeyStatus(report);
-  }
-  
-  // Function to check API key status and show warnings
-  function checkApiKeyStatus(report) {
-    let missingApis = [];
-    
-    // Check Safe Browsing API
-    if (report.checks.safeBrowsing.details && report.checks.safeBrowsing.details.apiConfigured === false) {
-      missingApis.push('Google Safe Browsing');
-    }
-    
-    // Check VirusTotal API
-    if (report.checks.vulnerabilities.details && report.checks.vulnerabilities.details.apiConfigured === false) {
-      missingApis.push('VirusTotal');
-    }
-    
-    // Show warning if APIs are missing
-    if (missingApis.length > 0) {
-      const warningElement = document.createElement('div');
-      warningElement.className = 'api-warning';
-      warningElement.innerHTML = `
-        <p>⚠️ Some API keys are not configured: ${missingApis.join(', ')}</p>
-        <p><a href="#" id="configure-apis-link">Configure APIs</a> for more accurate results.</p>
-      `;
-      
-      // Insert after URL container
-      const urlContainer = document.querySelector('.url-container');
-      if (urlContainer) {
-        urlContainer.parentNode.insertBefore(warningElement, urlContainer.nextSibling);
-        
-        // Add click event to the configure link
-        const configureLink = document.getElementById('configure-apis-link');
-        if (configureLink) {
-          configureLink.addEventListener('click', function(e) {
-            e.preventDefault();
-            settingsModal.style.display = 'block';
-          });
-        }
-      }
-    }
-  }
-  
-  // Function to update individual check section
-  function updateCheckSection(sectionId, checkData) {
-    if (!checkData) {
-      console.error(`Missing check data for section: ${sectionId}`);
-      return;
-    }
-    
-    const section = document.getElementById(sectionId);
-    if (!section) {
-      console.error(`Section not found: ${sectionId}`);
-      return;
-    }
-    
-    const scoreElement = section.querySelector('.check-score');
-    const detailsElement = section.querySelector('.check-details');
-    
-    if (!scoreElement || !detailsElement) {
-      console.error(`Required elements not found in section: ${sectionId}`);
-      return;
-    }
-    
-    // Update score
-    scoreElement.textContent = checkData.score;
-    setScoreColor(scoreElement, checkData.score);
-    
-    // Update status icon based on status
-    const statusIcon = getStatusIcon(checkData.status);
-    
-    // Get message from details or use a default
-    const message = checkData.details && checkData.details.message 
-      ? checkData.details.message 
-      : 'No details available';
-    
-    // Start building the details HTML
-    let detailsHtml = `<div class="status-row">
-      <span class="status-icon">${statusIcon}</span>
-      <span class="status-message">${message}</span>
-    </div>`;
-    
-    // Add error message if present
-    if (checkData.details && checkData.details.error) {
-      detailsHtml += `<div class="error-row">
-        <span class="error-message">Error: ${checkData.details.error}</span>
-      </div>`;
-    }
-    
-    // Add SSL Labs details (customize this section)
-    if (sectionId === 'ssl-check' && checkData.details && checkData.details.sslLabs) {
-      detailsHtml += '<div class="details-list">';
-    
-      if (checkData.details.endpoints && checkData.details.endpoints.length > 0) {
-        checkData.details.endpoints.forEach(endpoint => {
-          detailsHtml += `<div class="detail-row">
-            <span class="detail-key">IP Address:</span>
-            <span class="detail-value">${endpoint.ipAddress}</span>
-          </div>`;
-          detailsHtml += `<div class="detail-row">
-            <span class="detail-key">Server Name:</span>
-            <span class="detail-value">${endpoint.serverName}</span>
-          </div>`;
-          detailsHtml += `<div class="detail-row">
-            <span class="detail-key">SSL Labs Grade:</span>
-            <span class="detail-value">${endpoint.grade} (${endpoint.statusMessage})</span>
-          </div>`;
-        });
-      }
-    
-      if (checkData.details.subject) {
-        detailsHtml += `<div class="detail-row">
-          <span class="detail-key">Subject:</span>
-          <span class="detail-value">${checkData.details.subject}</span>
-        </div>`;
-      }
-      if (checkData.details.issuer) {
-        detailsHtml += `<div class="detail-row">
-          <span class="detail-key">Issuer:</span>
-          <span class="detail-value">${checkData.details.issuer}</span>
-        </div>`;
-      }
-      if (checkData.details.validFrom) {
-        detailsHtml += `<div class="detail-row">
-          <span class="detail-key">Valid From:</span>
-          <span class="detail-value">${new Date(checkData.details.validFrom).toLocaleDateString()}</span>
-        </div>`;
-      }
-      if (checkData.details.validTo) {
-        detailsHtml += `<div class="detail-row">
-          <span class="detail-key">Valid To:</span>
-          <span class="detail-value">${new Date(checkData.details.validTo).toLocaleDateString()}</span>
-        </div>`;
-      }
-      if (checkData.details.daysToExpiry !== undefined) {
-        detailsHtml += `<div class="detail-row">
-          <span class="detail-key">Days To Expiry:</span>
-          <span class="detail-value">${checkData.details.daysToExpiry}</span>
-        </div>`;
-      }
-    
-      detailsHtml += '</div>'; // Close details-list
-      
-      // REMOVE the line that was adding the full sslLabs data
-      //detailsElement.innerHTML += `<pre>${JSON.stringify(checkData.details.sslLabs, null, 2)}</pre>`;
-    }
-    
-    // Add other details if available (but NOT the full sslLabs)
-    if (checkData.details && Object.keys(checkData.details).length > 0) {
-      detailsHtml += '<div class="details-list">';
-      for (const [key, value] of Object.entries(checkData.details)) {
-        // Skip certain keys (including sslLabs)
-        if (key === 'message' || key === 'apiConfigured' || key === 'error' || key === 'sslLabs') continue;
-        
-        // Skip empty arrays
-        if (Array.isArray(value) && value.length === 0) continue;
-        
-        // Format arrays and objects nicely
-        let displayValue = formatValue(value);
-        
-        // Format the key for display
-        const displayKey = formatKey(key);
-        
-        detailsHtml += `<div class="detail-row">
-          <span class="detail-key">${displayKey}:</span>
-          <span class="detail-value">${displayValue}</span>
-        </div>`;
-      }
-      detailsHtml += '</div>';
-    }
-    
-    // Finally, set the innerHTML
-    detailsElement.innerHTML = detailsHtml;
-    detailsElement.style.display = 'block';
-  }
-  
-  // Function to format a value for display
-  function formatValue(value) {
-    if (value === null || value === undefined) {
-      return 'None';
-    }
-
-    if (typeof value === 'object' && value !== null) {
-      try {
-        if (Array.isArray(value)) {
-          // Handle arrays of objects
-          let formattedArray = '<div class="details-grid">'; // Use a grid container
-          for (const item of value) {
-            if (typeof item === 'object' && item !== null) {
-              for (const [key, val] of Object.entries(item)) {
-                formattedArray += `<div class="detail-key">${formatKey(key)}:</div>
-                  <div class="detail-value">${formatValue(val)}</div>`;
-              }
-            } else {
-              formattedArray += `<div class="detail-value">${formatValue(item)}</div>`; // Simple value
-            }
-          }
-          formattedArray += '</div>'; // Close grid container
-          return formattedArray;
-        } else {
-          // Handle single objects
-          let formattedString = '<div class="details-grid">'; // Use a grid container
-          for (const [key, val] of Object.entries(value)) {
-            formattedString += `<div class="detail-key">${formatKey(key)}:</div>
-              <div class="detail-value">${formatValue(val)}</div>`;
-          }
-          formattedString += '</div>'; // Close grid container
-          return formattedString;
-        }
-      } catch (e) {
-        return String(value);
-      }
-    }
-
-    return String(value);
-  }
-  
-  // Function to format a key for display
-  function formatKey(key) {
-    return key
-      .replace(/([A-Z])/g, ' $1')
-      .replace(/^./, str => str.toUpperCase())
-      .replace(/([a-z])([A-Z])/g, '$1 $2');
-  }
-  
-  // Function to get status icon based on status
-  function getStatusIcon(status) {
-    switch (status) {
-      case 'passed':
-        return '✅';
-      case 'warning':
-        return '⚠️';
-      case 'failed':
-        return '❌';
-      case 'error':
-        return '⚠️';
-      case 'pending':
-        return '⏳';
-      default:
-        return '❓';
-    }
-  }
-  
-  // Function to set color based on score
-  function setScoreColor(element, score) {
-    if (!element) return;
-    
-    // Remove existing color classes
-    element.classList.remove('good-score', 'medium-score', 'bad-score');
-    
-    if (score >= 70) {
-      element.classList.add('good-score');
-    } else if (score >= 40) {
-      element.classList.add('medium-score');
-    } else {
-      element.classList.add('bad-score');
-    }
-  }
-  
-  // Function to update score circle color
-  function updateScoreCircleColor(score) {
-    const scoreCircle = document.querySelector('.score-circle');
-    if (!scoreCircle) {
-      console.error('Score circle element not found');
-      return;
-    }
-    
-    // Remove existing color classes
-    scoreCircle.classList.remove('good-score-bg', 'medium-score-bg', 'bad-score-bg');
-    
-    if (score >= 70) {
-      scoreCircle.classList.add('good-score-bg');
-    } else if (score >= 40) {
-      scoreCircle.classList.add('medium-score-bg');
-    } else {
-      scoreCircle.classList.add('bad-score-bg');
-    }
-  }
-  
-  // Function to show error message
-  function showError(message) {
-    console.error(message);
-    if (currentUrlElement) {
-      currentUrlElement.textContent = message;
-      currentUrlElement.classList.add('error');
-    }
-    
-    // Reset scan button and progress
-    if (scanButton) scanButton.style.display = 'block';
-    if (scanProgress) scanProgress.style.display = 'none';
+}
+$("show-keys").addEventListener("change", () => {
+  for (const id of ["google-api-key", "virustotal-api-key"])
+    $(id).type = $("show-keys").checked ? "text" : "password";
+});
+$("settings-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = event.submitter;
+  button.disabled = true;
+  try {
+    const config = structuredClone(currentConfig);
+    config.apiKeys = {
+      googleSafeBrowsing: $("google-api-key").value.trim(),
+      virusTotal: $("virustotal-api-key").value.trim(),
+    };
+    for (const [id, key] of [
+      ["external-services", "externalServices"],
+      ["save-history", "saveHistory"],
+      ["show-badge", "showBadge"],
+    ])
+      config.settings[key] = $(id).checked;
+    config.settings.cacheMinutes = Number($("cache-minutes").value);
+    for (const key of Object.keys(C.CHECKS))
+      config.settings.checks[key] = $("enable-" + key).checked;
+    config.settings.directoryConsent =
+      config.settings.checks.exposedDirectories;
+    const response = await send("saveConfig", { config });
+    currentConfig = response.config;
+    resetReport();
+    notice("Settings saved. Run a fresh scan to use them.");
+  } catch (error) {
+    notice(error.message, true);
+  } finally {
+    button.disabled = false;
   }
 });
+function renderReport(report, source) {
+  currentReport = report;
+  $("empty-state").hidden = true;
+  $("report").hidden = false;
+  $("report-source").textContent = source;
+  $("report-url").textContent = report.url;
+  $("scan-time").textContent = new Date(report.timestamp).toLocaleString();
+  $("overall-score").textContent = report.overallScore ?? "—";
+  $("coverage-text").textContent = report.coverage + "%";
+  $("coverage").value = report.coverage;
+  $("assessed-text").textContent =
+    `${report.assessedWeight} of ${report.totalWeight} weighted points assessed`;
+  const scorePanel = document.querySelector(".score-panel");
+  const failed = Object.values(report.checks).some(
+    (check) => check.status === "failed",
+  );
+  scorePanel.classList.toggle(
+    "failed",
+    failed ||
+      report.threatDetected ||
+      (report.overallScore !== null && report.overallScore < 50),
+  );
+  scorePanel.classList.toggle(
+    "warning",
+    !failed &&
+      !report.threatDetected &&
+      (report.coverage < 75 ||
+        (report.overallScore !== null && report.overallScore < 80)),
+  );
+  $("score-explanation").textContent = report.threatDetected
+    ? "A reputation service flagged this site. The score is capped at 20. Review the threat finding before continuing."
+    : "The score uses completed checks only. Skipped or unavailable checks do not earn points. High scores with low coverage are incomplete.";
+  const comparison = report.comparison;
+  $("comparison").hidden = !comparison;
+  $("comparison-details").hidden = !comparison?.changes?.length;
+  $("comparison-changes").replaceChildren();
+  for (const change of comparison?.changes || []) {
+    const li = document.createElement("li");
+    li.textContent = `${C.CHECKS[change.check]?.label || change.check}: ${change.before} (${change.beforeScore ?? "—"}) → ${change.after} (${change.afterScore ?? "—"})`;
+    $("comparison-changes").append(li);
+  }
+  if (comparison)
+    $("comparison").textContent = comparison.comparable
+      ? `${comparison.scoreDelta > 0 ? "+" : ""}${comparison.scoreDelta ?? "—"} points since ${new Date(comparison.previousTimestamp).toLocaleString()}. ${comparison.changes.length} checks changed.`
+      : `Previous scan: ${new Date(comparison.previousTimestamp).toLocaleString()}. Scores are not directly comparable because the page, settings, or assessed checks changed. ${comparison.changes.length} checks changed.`;
+  $("checks").replaceChildren();
+  for (const [key, definition] of Object.entries(C.CHECKS)) {
+    const check = report.checks[key];
+    if (!check) continue;
+    const details = document.createElement("details");
+    details.dataset.check = key;
+    const summary = document.createElement("summary");
+    const label = document.createElement("span");
+    label.className = "label";
+    label.textContent = definition.label;
+    const status = document.createElement("span");
+    status.className = "status " + check.status;
+    status.textContent =
+      check.status === "error"
+        ? "Unavailable"
+        : check.status[0].toUpperCase() + check.status.slice(1);
+    const points = document.createElement("span");
+    points.className = "points";
+    points.textContent = `${check.score ?? "—"}/${definition.max}`;
+    summary.append(label, status, points);
+    const body = document.createElement("div");
+    body.className = "detail-body";
+    const message = document.createElement("p");
+    message.textContent = check.details.message;
+    body.append(message);
+    const extra = { ...check.details };
+    delete extra.message;
+    if (Object.keys(extra).length) {
+      const pre = document.createElement("pre");
+      pre.textContent = JSON.stringify(extra, null, 2);
+      body.append(pre);
+    }
+    details.append(summary, body);
+    $("checks").append(details);
+  }
+  $("advice-list").replaceChildren();
+  for (const item of report.recommendations || []) {
+    const li = document.createElement("li");
+    const priority = document.createElement("span");
+    priority.className = "priority";
+    priority.textContent = item.priority + " priority";
+    const strong = document.createElement("strong");
+    strong.textContent = item.title;
+    const advice = document.createElement("span");
+    advice.textContent = item.advice;
+    li.append(priority, strong, advice);
+    $("advice-list").append(li);
+  }
+  $("no-advice").hidden = !!report.recommendations?.length;
+  $("export-json").disabled = !report.id;
+  $("export-html").disabled = !report.id;
+}
+function applyJob(job) {
+  currentJob = job;
+  const scanning = job?.status === "running";
+  $("scan-button").disabled = tabId === null || scanning;
+  $("fresh-button").disabled = tabId === null || scanning;
+  $("cancel-button").hidden = !scanning;
+  $("scan-progress").hidden = !scanning;
+  if (scanning) {
+    $("progress").value = job.completed;
+    $("progress-label").textContent = `${job.completed} / ${job.total}`;
+    if (!viewingHistory) {
+      const partial = {
+        url: currentTabName,
+        timestamp: new Date(job.startedAt).toISOString(),
+        checks: job.checks,
+        ...C.scoreReport(job.checks),
+        recommendations: C.recommendations(job.checks),
+      };
+      renderReport(partial, "Scan in progress");
+    }
+  } else if (job?.report && !viewingHistory && renderedId !== job.id) {
+    renderedId = job.id;
+    renderReport(
+      job.report,
+      job.status === "cancelled"
+        ? "Partial scan · not saved"
+        : job.cached
+          ? "Cached scan · use Scan fresh to update"
+          : "Latest scan",
+    );
+    if (job.message) notice(job.message, true);
+  } else if (job?.status === "error") notice(job.message, true);
+}
+async function scan(force) {
+  viewingHistory = false;
+  renderedId = null;
+  notice();
+  $("scan-button").disabled = true;
+  $("fresh-button").disabled = true;
+  try {
+    const response = await send("startScan", { tabId, force });
+    applyJob(response.job);
+  } catch (error) {
+    notice(error.message, true);
+    applyJob(null);
+  }
+}
+$("scan-button").addEventListener("click", () => scan(false));
+$("fresh-button").addEventListener("click", () => scan(true));
+$("cancel-button").addEventListener("click", async () => {
+  try {
+    const response = await send("cancelScan", { tabId });
+    applyJob(response.job);
+  } catch (error) {
+    notice(error.message, true);
+  }
+});
+async function loadHistory() {
+  history = (await send("getHistory")).history;
+  renderHistory();
+}
+function renderHistory() {
+  const search = $("history-search").value.trim().toLowerCase();
+  $("history-list").replaceChildren();
+  const matches = history.filter((report) =>
+    report.url.toLowerCase().includes(search),
+  );
+  if (!matches.length) {
+    const p = document.createElement("p");
+    p.className = "muted";
+    p.textContent = history.length
+      ? "No reports match this hostname."
+      : "No saved scans. Scan a website to start your history.";
+    $("history-list").append(p);
+  }
+  for (const report of matches) {
+    const row = document.createElement("div");
+    row.className = "history-row";
+    const open = document.createElement("button");
+    open.className = "history-open";
+    const name = document.createElement("span");
+    name.textContent = report.url;
+    const meta = document.createElement("span");
+    meta.className = "muted";
+    meta.textContent = `${new Date(report.timestamp).toLocaleString()} · ${report.overallScore ?? "—"}/100 · ${report.coverage}% coverage`;
+    open.append(name, meta);
+    open.addEventListener("click", () => {
+      viewingHistory = true;
+      notice();
+      renderReport(report, "Saved report");
+      showPanel("scan");
+    });
+    const remove = document.createElement("button");
+    remove.className = "history-delete danger";
+    remove.textContent = "Delete";
+    remove.setAttribute("aria-label", "Delete report for " + report.url);
+    remove.addEventListener("click", async () => {
+      try {
+        await send("deleteReport", { id: report.id });
+        if (currentReport?.id === report.id) resetReport();
+        await loadHistory();
+        notice("Report deleted.");
+      } catch (error) {
+        notice(error.message, true);
+      }
+    });
+    row.append(open, remove);
+    $("history-list").append(row);
+  }
+}
+function resetReport() {
+  currentReport = null;
+  currentJob = null;
+  viewingHistory = false;
+  renderedId = null;
+  $("report").hidden = true;
+  $("empty-state").hidden = false;
+  applyJob(null);
+}
+$("history-search").addEventListener("input", renderHistory);
+$("clear-history").addEventListener("click", async () => {
+  if (
+    !confirm(
+      "Delete all saved and cached reports and stop active scans? Your API settings will be kept.",
+    )
+  )
+    return;
+  try {
+    await send("clearHistory");
+    resetReport();
+    await loadHistory();
+    notice("All scan data cleared.");
+  } catch (error) {
+    notice(error.message, true);
+  }
+});
+function download(format) {
+  if (!currentReport?.id) {
+    notice("Wait for the scan to finish before exporting.", true);
+    return;
+  }
+  const blob = new Blob(
+    [
+      format === "json"
+        ? JSON.stringify(C.publicReport(currentReport), null, 2)
+        : C.reportHtml(currentReport),
+    ],
+    { type: format === "json" ? "application/json" : "text/html" },
+  );
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `security-report-${new URL(currentReport.url).hostname.replace(/[^a-z0-9.-]/gi, "_")}-${currentReport.timestamp.slice(0, 10)}.${format}`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+$("export-json").addEventListener("click", () => download("json"));
+$("export-html").addEventListener("click", () => download("html"));
+(async () => {
+  try {
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+    try {
+      currentTabName = C.sanitizeUrl(tab?.url, true);
+      if (
+        ["chromewebstore.google.com", "chrome.google.com"].includes(
+          new URL(currentTabName).hostname,
+        )
+      )
+        throw new Error("Restricted page");
+      tabId = tab.id;
+      $("current-url").textContent = currentTabName;
+    } catch {
+      $("current-url").textContent =
+        "Open a regular HTTP or HTTPS website to scan.";
+    }
+    const state = await send("getState", { tabId });
+    fillSettings(state.config);
+    applyJob(state.job);
+  } catch (error) {
+    notice(error.message, true);
+  }
+})();
+setInterval(async () => {
+  if (polling || !currentJob || currentJob.status !== "running") return;
+  polling = true;
+  try {
+    const state = await send("getState", { tabId });
+    if (!state.job) {
+      resetReport();
+      notice("Scan data was cleared or the page changed.");
+    } else applyJob(state.job);
+  } catch (error) {
+    notice(error.message, true);
+  } finally {
+    polling = false;
+  }
+}, 700);

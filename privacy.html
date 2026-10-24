@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy — Website Security Scanner</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="privacy-page">
+    <h1>Privacy and data use</h1>
+    <p>Website Security Scanner 1.0.5 · Effective October 23, 2026</p>
+    <h2>What happens during a scan</h2>
+    <p>
+      Scans start only when you select Scan site or Scan fresh. The extension
+      reads the current tab URL, performs an unauthenticated HEAD request to the
+      same page with URL queries and fragments removed, and inspects top-level
+      resource URLs and form attributes. It never reads or submits password
+      values or other form values. Optional directory probing sends
+      unauthenticated GET requests to a small list of common directories, only
+      after you enable it and confirm authorization in Settings.
+    </p>
+    <h2>Optional external security services</h2>
+    <p>
+      External lookups are off by default, including after upgrading from 1.0.4.
+      You must enable them in Settings. When enabled and the corresponding check
+      is selected: SSL Labs receives the hostname and may actively assess its
+      TLS configuration; Google Public DNS receives TXT queries for the hostname
+      and its _dmarc subdomain; VirusTotal receives the hostname; Google Safe
+      Browsing receives the site origin, excluding path, query, and fragment.
+      Only the origin is checked by Safe Browsing, not every page. Each provider
+      also receives the network information normally associated with an HTTPS
+      request, including your IP address. Local/private hostnames and literal
+      private IP ranges are filtered. This filter does not resolve DNS to
+      determine whether a public-looking hostname routes privately.
+    </p>
+    <p>
+      Your API keys are sent only to their respective providers. Review the
+      providers' policies before enabling these services:
+      <a href="https://www.qualys.com/company/privacy/">SSL Labs / Qualys</a>,
+      <a href="https://policies.google.com/privacy">Google</a>, and
+      <a href="https://docs.virustotal.com/docs/privacy-policy">VirusTotal</a>.
+    </p>
+    <h2>Data on your device</h2>
+    <p>
+      API keys and settings are kept in Chrome extension local storage. Optional
+      history stores up to 50 reports: site origins, dates, findings, scores,
+      provider results, and sanitized resource or form destination paths. URL
+      queries, fragments, credentials, form values, and API keys are excluded
+      from reports. Some paths, certificates, and header values can still
+      identify a site. The extension stores a one-way page/settings fingerprint
+      for cache and comparison matching. Recent reports and active jobs are kept
+      in session storage, with cached reports reused for at most five minutes.
+      Session data is removed when the browser session ends. Saving settings
+      invalidates session reports and cache. Disabling history deletes saved
+      reports when you save settings.
+    </p>
+    <p>
+      History provides individual deletion and Clear all scan data. Clear all
+      stops active scans and removes saved reports, cached reports, and session
+      jobs while keeping API settings. Remove keys in Settings to erase them.
+      Uninstalling removes extension storage. Exported reports are files under
+      your control; deleting history does not remove exports.
+    </p>
+    <h2>Use, transfer, and retention</h2>
+    <p>
+      The extension has no developer-operated analytics, advertising, remote
+      code, or collection server. Scan data is used only to deliver the visible
+      security assessment. The developer does not sell user data, use it for
+      advertising or credit decisions, or allow humans to read it. Transfers are
+      limited to the optional providers needed for checks you enable. Their
+      retention practices are governed by their own policies.
+    </p>
+    <p>
+      Website Security Scanner's use of information received from Google APIs
+      adheres to the Chrome Web Store User Data Policy, including the Limited
+      Use requirements.
+    </p>
+    <h2>Permissions and limits</h2>
+    <p>
+      activeTab grants temporary access to the site you choose. scripting
+      inspects that page. storage saves settings and reports. Host permissions
+      cover only the four named security providers. The extension does not
+      request permanent access to all websites, cookies, downloads, or browsing
+      history. It does not scan in the background on a schedule.
+    </p>
+    <p>
+      Results are heuristic and may be incomplete or outdated. A score is not a
+      guarantee of safety or a complete security audit. Pages, headers, and API
+      responses can change.
+    </p>
+    <h2>Contact and changes</h2>
+    <p>
+      Contact Kevin DeMara at
+      <a href="mailto:kevin@eventidestudios.com">kevin@eventidestudios.com</a>
+      or through the
+      <a href="https://github.com/kevindemara/website-security-scanner/issues"
+        >project support page</a
+      >. Material privacy changes will be reflected here and in the hosted
+      privacy policy used by the store listing.
+    </p>
+  </body>
+</html>
